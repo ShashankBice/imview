@@ -1,0 +1,6 @@
+To get the imviewer wroking from Bash on Windows 'Ubuntu' Subaystem, apply the following changes
+Solution from "https://stackoverflow.com/questions/43397162/show-matplotlib-plots-in-ubuntu-windows-subsystem-for-linux" 
+Google "xming" (x11 server) and download (from sourceforge) / install / run
+sudo apt-get install x11-apps
+export DISPLAY=localhost:0.0 (you will have to make this permanent, otherwise you will have to edit it everytime you activate your conda environment).
+sudo apt-get update && sudo apt-get install qtbase5-dev
