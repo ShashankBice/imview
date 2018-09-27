@@ -7,6 +7,7 @@
 #Needs to be cleaned up, but should work out of the box
 
 #Todo
+#Scalebar adjustment when loading subsampled input bma
 #access from malib
 #Clean up overlay handling
 #pyproj or geolib to go from projected coord to lat/lon
@@ -50,10 +51,6 @@ plt.register_cmap(cmap=cpt_rainbow_r)
 #Global variable holding array under cursor
 gbma = None
 
-#Use to specify a constant set of contours
-#c_fn = 'raster.tif'
-#bma_c = iolib.fn_getma(c_fn)
-
 #This adds the z-value to cursor coordinate info
 def format_coord(x, y):
     x = int(x + 0.5)
@@ -92,7 +89,7 @@ def onclick(event):
                 #gdal (0,0) is upper left
                 mx, my = geolib.pixelToMap(xpx, ypx, ggt)
                 out = (xpx, ypx), (mx, my, gbma[ypx, xpx])
-            print out
+            print(out)
         except IndexError:
             pass
 
@@ -144,8 +141,8 @@ def ndanimate(a):
 
 #Note: can probably handle the cmap and clim in imshow_kwargs
 #def bma_fig(bma, cmap='gray', clim=malib.calcperc(bma,perc)):
-#def bma_fig(fig, bma, cmap='gist_rainbow_r', clim=None, bg=None, n_subplt=1, subplt=1, label=None, cint=None, **imshow_kwargs):
-def bma_fig(fig, bma, cmap='cpt_rainbow', clim=None, clim_perc=(2,98), bg=None, bg_perc=(2,98), n_subplt=1, subplt=1, label=None, title=None, cint=None, alpha=0.5, ticks=False, scalebar=None, ds=None, shp=None, imshow_kwargs={'interpolation':'nearest'}, cbar_kwargs={'extend':'both', 'orientation':'vertical', 'shrink':0.7, 'fraction':0.12, 'pad':0.02}, **kwargs):
+#def bma_fig(fig, bma, cmap='gist_rainbow_r', clim=None, bg=None, n_subplt=1, subplt=1, label=None, contour_int=None, **imshow_kwargs):
+def bma_fig(fig, bma, cmap='cpt_rainbow', clim=None, clim_perc=(2,98), bg=None, bg_perc=(2,98), n_subplt=1, subplt=1, label=None, title=None, contour_int=None, contour_fn=None, alpha=0.5, ticks=False, scalebar=None, ds=None, shp=None, imshow_kwargs={'interpolation':'nearest'}, cbar_kwargs={'extend':'both', 'orientation':'vertical', 'shrink':0.7, 'fraction':0.12, 'pad':0.02}, **kwargs):
     #We don't use the kwargs, just there to save parsing in main
     
     if clim is None:
@@ -156,9 +153,9 @@ def bma_fig(fig, bma, cmap='cpt_rainbow', clim=None, clim_perc=(2,98), bg=None, 
                 clim = (bma.fill_value, clim[0])
             else:
                 clim = (clim[0], bma.fill_value)
-        print "Colorbar limits (%0.1f-%0.1f%%): %0.3f %0.3f" % (clim_perc[0], clim_perc[1], clim[0], clim[1])
+        print("Colorbar limits (%0.1f-%0.1f%%): %0.3f %0.3f" % (clim_perc[0], clim_perc[1], clim[0], clim[1]))
     else:
-        print "Colorbar limits: %0.3f %0.3f" % (clim[0], clim[1])
+        print("Colorbar limits: %0.3f %0.3f" % (clim[0], clim[1]))
 
     #Link all subplots for zoom/pan
     sharex = sharey = None
@@ -182,6 +179,8 @@ def bma_fig(fig, bma, cmap='cpt_rainbow', clim=None, clim_perc=(2,98), bg=None, 
     if 'inferno' in cmap_name:
         #Use a gray background
         cmap.set_bad('0.5', alpha=1)
+        #This may be better 
+        #cmap.set_bad('0.1', alpha=1)
         #cmap.set_bad('k', alpha=1)
     else:
         #This sets the nodata background to opaque black
@@ -194,17 +193,18 @@ def bma_fig(fig, bma, cmap='cpt_rainbow', clim=None, clim_perc=(2,98), bg=None, 
 
     #If a background image is provided, plot it first
     if bg is not None:
-        #Note, 1 is opaque, 0 completely transparent
+        #Note, alpha=1 is opaque, 0 completely transparent
         #alpha = 0.6
         #bg_perc = (0.05, 99.95)
         #bg_perc = (1, 99)
-        bg_perc = (2, 98)
+        #bg_perc = (2, 98)
         #bg_perc = (3,97)
-        #bg_perc = (4,96)
+        bg_perc = (4,96)
         bg_alpha = 1.0
         #bg_alpha = 0.5 
         bg_clim = malib.calcperc(bg, bg_perc)
         #bg_clim = (115, 255)
+        bg_clim = (1, 255)
         bg_cmap_name = 'gray'
         bg_cmap = plt.get_cmap(bg_cmap_name)
         if 'inferno' in cmap_name:
@@ -248,36 +248,46 @@ def bma_fig(fig, bma, cmap='cpt_rainbow', clim=None, clim_perc=(2,98), bg=None, 
 
         cbar = pltlib.add_cbar(ax, imgplot, label=label, cbar_kwargs=cbar_kwargs)
    
-    #Plot contours every cint interval and update colorbar appropriately
-    if cint is not None:
-        if bma_c is not None:
-            bma_clim = malib.calcperc(bma_c)
-            #PIG bed ridge contours
-            #bma_clim = (-1300, -300)
-            #Jak front shear margin contours
-            #bma_clim = (2000, 4000)
-            cstart = int(np.floor(bma_clim[0] / cint)) * cint 
-            cend = int(np.ceil(bma_clim[1] / cint)) * cint
+    #Plot contours every contour_int interval and update colorbar appropriately
+    if contour_int is not None:
+        if contour_fn is not None:
+            contour_bma = iolib.fn_getma(contour_fn)
+            contour_bma_clim = malib.calcperc(contour_bma)
         else:
-            #cstart = int(np.floor(bma.min() / cint)) * cint 
-            #cend = int(np.ceil(bma.max() / cint)) * cint
-            cstart = int(np.floor(clim[0] / cint)) * cint 
-            cend = int(np.ceil(clim[1] / cint)) * cint
+            contour_bma = bma
+            contour_bma_clim = clim
+
+        #PIG bed ridge contours
+        #bma_clim = (-1300, -300)
+        #Jak front shear margin contours
+        #bma_clim = (2000, 4000)
+        contour_bma_clim = (100, 250)
+        cstart = int(np.floor(contour_bma_clim[0] / contour_int)) * contour_int 
+        cend = int(np.ceil(contour_bma_clim[1] / contour_int)) * contour_int
 
         #Turn off dashed negative (beds are below sea level)
         #matplotlib.rcParams['contour.negative_linestyle'] = 'solid'
 
-        clvl = np.arange(cstart, cend+1, cint)
-        #contours = ax.contour(bma_c, colors='k', levels=clvl, alpha=0.5)
-        contours = ax.contour(bma_c, cmap='gray', linestyle='--', levels=clvl, alpha=1.0)
+        clvl = np.arange(cstart, cend+1, contour_int)
+        contour_prop = {'levels':clvl, 'linestyle':'-', 'linewidths':0.5, 'alpha':1.0}
+        #contours = ax.contour(contour_bma, colors='k', **contour_prop)
+        #contour_cmap = 'gray'
+        contour_cmap = 'gray_r'
+        #This prevents white contours
+        contour_cmap_clim = (0, contour_bma_clim[-1])
+        contours = ax.contour(contour_bma, cmap=contour_cmap, vmin=contour_cmap_clim[0], \
+                vmax=contour_cmap_clim[-1], **contour_prop)
+
+        #Add labels
+        ax.clabel(contours, inline=True, inline_spacing=0, fontsize=4, fmt='%i')
 
         #Update the cbar with contour locations
-        cbar.add_lines(contours)
-        cbar.set_ticks(contours.levels)
+        #cbar.add_lines(contours)
+        #cbar.set_ticks(contours.levels)
 
     #Plot shape overlay, moved code to pltlib
     if shp is not None:
-        pltlib.shp_overlay(ax, ds, shp, gt=gt)
+        pltlib.shp_overlay(ax, ds, shp, gt=gt, color='k')
 
     if scalebar:
         scale_ticks(ax, ds)
@@ -312,7 +322,7 @@ def get_bma(src_ds, bn, full):
     if full:
         return iolib.ds_getma(src_ds, bn)
     else:
-        return iolib.gdal_getma_sub(src_ds, bn)
+        return iolib.ds_getma_sub(src_ds, bn)
 
 def getparser():
     #Generate list of valid mpl colormaps
@@ -332,24 +342,32 @@ def getparser():
     parser.add_argument('-cmap', default=None, choices=maps, help='set colormap type')
     #Check to make sure these are ordered correctly
     parser.add_argument('-clim', nargs=2, type=float, default=None, help='set colormap limits (min max)')
-    parser.add_argument('-clim_perc', nargs=2, type=float, default=(2.0, 98.0), help='set colormap percentile limits (min max)')
-    parser.add_argument('-coord', default=None, choices=['None', 'proj', 'latlon'], help='set coordinate label type')
-    parser.add_argument('-cint', type=float, default=None, help='set contour interval')
+    parser.add_argument('-clim_perc', nargs=2, type=float, default=(2.0, 98.0), \
+            help='set colormap percentile limits (min max)')
+    parser.add_argument('-coord', default=None, choices=['None', 'proj', 'latlon'], \
+            help='set coordinate label type')
+    parser.add_argument('-contour_fn', default=None, \
+            help='Filename of raster to use for contour. Default is input filename')
+    parser.add_argument('-contour_clim', nargs=2, type=float, default=None, help='set contour limits')
+    parser.add_argument('-contour_int', type=float, default=None, help='set contour interval')
     parser.add_argument('-label', type=str, default=None, help='colorbar label')
     parser.add_argument('-full', action='store_true', help='do not subsample for display') 
     #Eventually, allow for of filename specification
-    parser.add_argument('-of', default=None, choices=['pdf', 'ps', 'jpg', 'png', 'tif'], help='save output to specified file type') 
+    parser.add_argument('-of', default=None, choices=['pdf', 'ps', 'jpg', 'png', 'tif'], \
+            help='save output to specified file type') 
     #Note: should bind this to -of above
     parser.add_argument('-dpi', type=float, default=None, help='specify output dpi') 
-    parser.add_argument('-outsize', nargs=2, type=float, default=None, help='specify output dimensions in inches (w h)') 
+    parser.add_argument('-outsize', nargs=2, type=float, default=None, \
+            help='specify output dimensions in inches (w h)') 
     parser.add_argument('-overlay', default=None, help='specify basemap for overlay')
-    parser.add_argument('-clipped',action='store_true',help='Do not warp to match overlay')
     parser.add_argument('-shp', default=None, help='specify shapefile for overlay')
-    parser.add_argument('-alpha', type=float, default=0.5, help='Overlay transparency (0 is transparent, 1 opaque)')
+    parser.add_argument('-alpha', type=float, default=0.4, \
+            help='Overlay transparency (0 is transparent, 1 opaque)')
     parser.add_argument('-link', action='store_true', help='share axes for all input images')
     parser.add_argument('-no_cbar', action='store_true', help='no colorbar')
     parser.add_argument('-ticks', action='store_true', help='display ticks')
     parser.add_argument('-scalebar',action='store_true', help='Show scalebar')
+    parser.add_argument('-title', type=str, default=None, help='Specify title')
     parser.add_argument('filelist', nargs='+', help='input filenames (img1.tif img2.tif...)')
     return parser
 
@@ -371,14 +389,16 @@ def main():
     #args['imshow_kwargs']={'interpolation':'bicubic'}
     args['imshow_kwargs']={'interpolation':'none'}
 
-    if args['clipped'] and args['overlay'] is None:
-        sys.exit("Must specify an overlay filename with option 'clipped'")
-
     #Set this as the background numpy array
     args['bg'] = None
 
     if args['shp'] is not None:
-        print args['shp']
+        print(args['shp'])
+
+    #Need to implement better extent handling for link and overlay
+    #Can use warplib extent parsing
+    extent = 'first'
+    #extent = 'union'
 
     if args['link']:
         fig = plt.figure(0)
@@ -388,14 +408,15 @@ def main():
         res_stats = geolib.get_res_stats(src_ds_list, t_srs=t_srs)
         #Use min res
         res = res_stats[0]
+        extent = 'intersection'
         extent = geolib.ds_geom_union_extent(src_ds_list, t_srs=t_srs)
-        #extent = 'intersection'
-        #print res, extent
+        #extent = geolib.ds_geom_intersection_extent(src_ds_list, t_srs=t_srs)
+        #print(res, extent)
 
     for n,fn in enumerate(args['filelist']):
 
         if not iolib.fn_check(fn):
-            print 'Unable to open input file: %s' % fn
+            print('Unable to open input file: %s' % fn)
             continue
 
         #Note: this won't work if img1 has 1 band and img2 has 3 bands
@@ -409,31 +430,16 @@ def main():
         fig.canvas.set_window_title(os.path.split(fn)[1])
         #fig.suptitle(os.path.split(fn)[1], fontsize=10)
 
-        #Note: warplib SHOULD internally check to see if extent/resolution/projection are identical
-        #This eliminates the need for a clipped flag
-        #If user has already warped the background and source data 
         if args['overlay']:
-            if args['clipped']: 
-                src_ds = gdal.Open(fn, gdal.GA_ReadOnly)
-                #Only load up the bg array once
-                if args['bg'] is None:
-                    #Need to check that background fn exists
-                    print "%s background" % args['overlay']
-                    bg_ds = gdal.Open(args['overlay'], gdal.GA_ReadOnly)
-                    #Check image dimensions
-                    args['bg'] = get_bma(bg_ds, 1, args['full'])
-            else:
-                #Clip/warp background dataset to match overlay dataset 
-                #src_ds, bg_ds = warplib.memwarp_multi_fn([fn, args['overlay']], extent='union')
-                src_ds, bg_ds = warplib.memwarp_multi_fn([fn, args['overlay']], extent='first')
-                #src_ds, bg_ds = warplib.memwarp_multi_fn([fn, args['overlay']], res='min', extent='first')
-                #Want to load up the unique bg array for each input
-                args['bg'] = get_bma(bg_ds, 1, args['full'])
+            #Should automatically search for shaded relief with same base fn
+            #bg_fn = os.path.splitext(fn)[0]+'_hs_az315.tif'
+            #Clip/warp background dataset to match overlay dataset 
+            src_ds, bg_ds = warplib.memwarp_multi_fn([fn, args['overlay']], extent=extent, res='max')
+            #Want to load up the unique bg array for each input
+            args['bg'] = get_bma(bg_ds, 1, args['full'])
         else:
             src_ds = gdal.Open(fn, gdal.GA_ReadOnly)
             if args['link']:
-                #Not sure why, but this still warps all linked ds, even when identical res/extent/srs
-                #src_ds = warplib.warp(src_ds, res=res, extent=extent, t_srs=t_srs)
                 src_ds = warplib.memwarp_multi([src_ds,], res=res, extent=extent, t_srs=t_srs)[0]
 
         cbar_kwargs={'extend':'both', 'orientation':'vertical', 'shrink':0.7, 'fraction':0.12, 'pad':0.02}
@@ -442,8 +448,7 @@ def main():
         b = src_ds.GetRasterBand(1)
         dt = gdal.GetDataTypeName(b.DataType)
         #Eventually, check dt of each band
-        print 
-        print "%s (%i bands)" % (fn, nbands)
+        print("%s (%i bands)" % (fn, nbands))
         #Singleband raster
         if (nbands == 1):
             if args['cmap'] is None:
@@ -504,12 +509,18 @@ def main():
         ts = timelib.fn_getdatetime_list(fn) 
 
         if ts:
-            print "Timestamp list: ", ts
+            print("Timestamp list: ", ts)
 
-        #if len(ts) == 1:
-        #    plt.title(ts[0].date())
-        #elif len(ts) == 2:
-        #    plt.title("%s to %s" % (ts[0].date(), ts[1].date()))
+        
+        title = args['title']
+        if title is None:
+            if len(ts) == 1:
+                title = ts[0].date()
+            elif len(ts) > 1:
+                title = "%s to %s" % (ts[0].date(), ts[1].date())
+        
+        if title is not None:
+            plt.title(title, fontdict={'fontsize':12})
             
         plt.tight_layout()
         
@@ -537,14 +548,14 @@ def main():
             elif (args['outsize'] is not None) and (args['dpi'] is None):
                 args['dpi'] = np.min([np.max(np.array(bma.shape[::-1])/np.array(args['outsize'])), max_dpi])
                 
-            print
-            print "Saving output figure:"
-            print "Filename: ", outf
-            print "Size (in): ", args['outsize']
-            print "DPI (px/in): ", args['dpi']
-            print "Input dimensions (px): ", bma.shape[::-1]
-            print "Output dimensions (px): ", tuple(np.array(args['outsize'])*args['dpi'])
-            print
+            print()
+            print("Saving output figure:")
+            print("Filename: ", outf)
+            print("Size (in): ", args['outsize'])
+            print("DPI (px/in): ", args['dpi'])
+            print("Input dimensions (px): ", bma.shape[::-1])
+            print("Output dimensions (px): ", tuple(np.array(args['outsize'])*args['dpi']))
+            print()
 
             fig.set_size_inches(args['outsize'])
             #fig.set_size_inches(54.427, 71.87)

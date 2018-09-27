@@ -54,7 +54,7 @@ def add_colorbar(ax, im, loc='center left', label=None):
     ax.add_artist(cbar)
  
 #def add_cbar(ax, im, label=None, cbar_kwargs={'extend':'both', 'orientation':'vertical', 'shrink':0.7, 'fraction':0.12, 'pad':0.02}):
-def add_cbar(ax, im, label=None, cbar_kwargs={'extend':'both', 'orientation':'vertical', 'fraction':0.046, 'pad':0.04}, fontsize=8):
+def add_cbar(ax, im, label=None, cbar_kwargs={'extend':'both', 'orientation':'vertical', 'fraction':0.046, 'pad':0.04}, fontsize=10):
     #cbar_kwargs['format'] = '%i'
     cbar = plt.colorbar(im, ax=ax, **cbar_kwargs) 
     if label is not None:
@@ -136,7 +136,8 @@ def shp_overlay(ax, ds, shp_fn, gt=None, color='darkgreen'):
         #Note: this should be done with the matplotlib patch functionality
         #http://matplotlib.org/users/path_tutorial.html
         elif geom_type == 3:
-            print "Polygon support not yet implemented"
+            print("Polygon support not yet implemented")
+            #ogr2ogr -nlt LINESTRING out.shp in.shp
             l, mX, mY = geolib.line2pts(geom)
             z = 0
             attr = {'marker':None, 'linestyle':'-', 'facecolor':'w'}
@@ -184,7 +185,7 @@ def shp_overlay(ax, ds, shp_fn, gt=None, color='darkgreen'):
                         #import ipdb; ipdb.set_trace()
                         #pX, pY = geolib.mapToPixel(np.array(mX), np.array(mY), gt)
                         pX, pY = geolib.mapToPixel(mmX, mmY, gt)
-                        #print n, np.diff(pX).max(), np.diff(pY).max()
+                        print(n, np.diff(pX).max(), np.diff(pY).max())
                         #ax.plot(pX, pY, color='LimeGreen', **attr)
                         #ax.plot(pX, pY, color='LimeGreen', alpha=0.5, **attr)
                         #ax.plot(pX, pY, color='w', alpha=0.5, **attr)
@@ -192,3 +193,56 @@ def shp_overlay(ax, ds, shp_fn, gt=None, color='darkgreen'):
                 else:
                     pX, pY = geolib.mapToPixel(np.array(mX), np.array(mY), gt)
                     ax.plot(pX, pY, color=color, **attr)
+
+#Added this here for convenience, needs further testing
+def plot_2dhist(ax, x, y, xlim=None, ylim=None, xint=None, yint=None, nbins=(128,128), log=False, maxline=True, trendline=False):
+    from pygeotools.lib import malib
+    #Should compute number of bins automatically based on input values, xlim and ylim
+    common_mask = ~(malib.common_mask([x,y]))
+    x = x[common_mask]
+    y = y[common_mask]
+    if xlim is None:
+        #xlim = (x.min(), x.max())
+        xlim = malib.calcperc(x, (0.1, 99.9))
+    if ylim is None:
+        #ylim = (y.min(), y.max())
+        ylim = malib.calcperc(y, (0.1, 99.9))
+    #Note, round to nearest meter here
+    #xlim = np.rint(np.array(xlim))
+    xlim = np.array(xlim)
+    ylim = np.array(ylim)
+    if xint is not None:
+        xedges = np.arange(xlim[0], xlim[1]+xint, xint)
+    else:
+        xedges = nbins[0]
+
+    if yint is not None:
+        yedges = np.arange(ylim[0], ylim[1]+yint, yint)
+    else:
+        yedges = nbins[1]
+
+    H, xedges, yedges = np.histogram2d(x,y,range=[xlim,ylim],bins=[xedges, yedges])
+    #H, xedges, yedges = np.histogram2d(x,y,range=[xlim,ylim],bins=nbins)
+    #H = np.rot90(H)
+    #H = np.flipud(H)
+    H = H.T
+    #Mask any empty bins
+    Hmasked = np.ma.masked_where(H==0,H)
+    #Hmasked = H
+    H_clim = malib.calcperc(Hmasked, (2,98))
+    if log:
+        import matplotlib.colors as colors
+        ax.pcolormesh(xedges,yedges,Hmasked,cmap='inferno',norm=colors.LogNorm(vmin=H_clim[0],vmax=H_clim[1]))
+    else:
+        ax.pcolormesh(xedges,yedges,Hmasked,cmap='inferno',vmin=H_clim[0],vmax=H_clim[1])
+    if maxline:
+        #Add line for max values in each x bin
+        Hmed_idx = np.ma.argmax(Hmasked, axis=0)
+        ymax = (yedges[:-1]+np.diff(yedges))[Hmed_idx]
+        ax.plot(xedges[:-1]+np.diff(xedges), ymax, color='dodgerblue',lw=1.0)
+    if trendline:
+        #Add trendline
+        import scipy.stats
+        y_slope, y_intercept, r_value, p_value, std_err = scipy.stats.linregress(x, y)
+        y_f = y_slope * xlim + y_intercept
+        ax.plot(xlim, y_f, color='limegreen', ls='--', lw=0.5)
