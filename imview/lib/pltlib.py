@@ -49,7 +49,7 @@ def iv_ds(ds, full=False, return_ma=False, **kwargs):
     return out 
 
 def iv(a, ax=None, clim=None, clim_perc=(2,98), cmap='cpt_rainbow', label=None, title=None, \
-        ds=None, res=None, hillshade=False, scalebar=True):
+        ds=None, res=None, hillshade=False, scalebar=True,cbar=True,skinny=True):
     """
     Quick image viewer with standardized display settings
     """
@@ -83,9 +83,10 @@ def iv(a, ax=None, clim=None, clim_perc=(2,98), cmap='cpt_rainbow', label=None, 
             sb_loc = best_scalebar_location(a)
             add_scalebar(ax, res, location=sb_loc)
     imgplot = ax.imshow(a, cmap=cm, clim=clim, alpha=alpha, **imshow_kwargs)
-    cbar_kwargs['extend'] = get_cbar_extend(a, clim=clim)
-    cbar_kwargs['format'] = get_cbar_format(a)
-    cbar = add_cbar(ax, imgplot, label=label)
+    if cbar:
+        cbar_kwargs['extend'] = get_cbar_extend(a, clim=clim)
+        cbar_kwargs['format'] = get_cbar_format(a)
+        cbar = add_cbar(ax, imgplot, label=label,skinny=skinny)
     hide_ticks(ax)
     if title is not None:
         ax.set_title(title)
@@ -187,7 +188,7 @@ def cbar_mappable(clim, cmap='inferno'):
     sm._A = []
     return sm
 
-def add_cbar(ax, mappable, label=None, arr=None, clim=None, cbar_kwargs=cbar_kwargs, fontsize=10, format=None):
+def add_cbar(ax, mappable, label=None, arr=None, clim=None, cbar_kwargs=cbar_kwargs, fontsize=10, format=None, skinny=True):
     """
     Add colorbar to axes for previously plotted mappable (output from imshow)
     
@@ -197,9 +198,11 @@ def add_cbar(ax, mappable, label=None, arr=None, clim=None, cbar_kwargs=cbar_kwa
     #from mpl_toolkits.axes_grid1.colorbar import colorbar
     fig = ax.get_figure()
     divider = make_axes_locatable(ax)
-    #cax = divider.append_axes("right", size="5%", pad=0.05)
-    #cax = divider.append_axes("right", size="5%", pad="2%")
-    cax = divider.append_axes("right", size="2%", pad="1%")
+    if not skinny:
+        #cax = divider.append_axes("right", size="5%", pad=0.05)
+        cax = divider.append_axes("right", size="5%", pad="2%")
+    else:
+        cax = divider.append_axes("right", size="2%", pad="1%")
     if arr is not None and clim is not None:
         cbar_kwargs['extend'] = get_cbar_extend(arr, clim=clim)
     if format is not None:
