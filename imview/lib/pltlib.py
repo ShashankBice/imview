@@ -87,6 +87,12 @@ def iv(a, ax=None, clim=None, clim_perc=(2,98), cmap='cpt_rainbow', label=None, 
         cbar_kwargs['extend'] = get_cbar_extend(a, clim=clim)
         cbar_kwargs['format'] = get_cbar_format(a)
         cbar = add_cbar(ax, imgplot, label=label,skinny=skinny)
+    else:
+        cbar_kwargs['extend'] = get_cbar_extend(a, clim=clim)
+        cbar_kwargs['format'] = get_cbar_format(a)
+        cbar = add_cbar(ax, imgplot, label=label,skinny=skinny)
+        cbar.remove()
+    
     hide_ticks(ax)
     if title is not None:
         ax.set_title(title)

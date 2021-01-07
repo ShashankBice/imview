@@ -201,7 +201,7 @@ def bma_fig(fig, bma, cmap='cpt_rainbow', clim=None, clim_perc=(2,98), bg=None, 
         cbar_kwargs['extend'] = pltlib.get_cbar_extend(bma, clim)
 
         #Add the colorbar to the axes
-        cbar = pltlib.add_cbar(ax, imgplot, label=label, cbar_kwargs=cbar_kwargs)
+        cbar = pltlib.add_cbar(ax, imgplot, label=label, skinny=False, cbar_kwargs=cbar_kwargs)
    
     #Plot contours every contour_int interval and update colorbar appropriately
     if contour_int is not None:
